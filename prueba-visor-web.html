@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dptos. Ojo de Agua y Quebrachos c. 1895</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body { margin: 0; padding: 0; display: flex; font-family: 'Segoe UI', sans-serif; height: 100vh; background: #1a1a1a; color: #eee; }
+        
+        /* Panel Lateral */
+        #sidebar { width: 380px; background: #252525; display: flex; flex-direction: column; border-right: 1px solid #444; }
+        .header { padding: 20px; background: #111; border-bottom: 1px solid #333; }
+        .content { flex: 1; overflow-y: auto; padding: 15px; }
+
+        /* Mapa */
+        #map { flex: 1; background: #000; }
+
+        /* Tabla Estilizada */
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th { background: #333; padding: 10px; text-align: left; position: sticky; top: 0; color: #aaa; text-transform: uppercase; }
+        td { padding: 10px; border-bottom: 1px solid #333; cursor: pointer; }
+        tr:hover { background: #3a3a3a; }
+        .no-ubicado { color: #ff6b6b; font-style: italic; }
+
+        /* Etiquetas del Mapa (Tooltips) */
+        .label-style {
+            background: rgba(0, 0, 0, 0.75); color: #fff; border: 1px solid #555;
+            padding: 2px 6px; font-size: 11px; font-weight: 600; border-radius: 3px;
+            pointer-events: none; text-shadow: 1px 1px 2px #000;
+        }
+
+        /* Leyenda */
+        .legend-box { background: #333; padding: 10px; border-radius: 5px; margin-bottom: 20px; font-size: 13px; }
+        .legend-item { display: flex; align-items: center; margin-bottom: 4px; }
+        .color-dot { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1px solid #fff; }
+
+        /* Scrollbar personalizado */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 10px; }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <div class="header">
+            <h2 style="margin:0; color: #f39c12; font-size: 20px;">Dptos. Ojo de Agua y Quebrachos c. 1895</h2>
+            <p style="margin:5px 0 0 0; font-size: 12px; color: #888;">Control de Geolocalización por Distritos</p>
+        </div>
+        <div class="content">
+            <h4>Leyenda de Distritos</h4>
+            <div id="legend" class="legend-box"></div>
+
+            <h4>Inventario de Localidades</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Paraje</th>
+                        <th>Distrito</th>
+                        <th>Confianza</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Tus datos exportados de QGIS -->
+    <script src="datos.js"></script>
+
+    <script>
+        // 1. Configuración Inicial del Mapa
+        const map = L.map('map').setView([-29.24, -63.61], 10); 
+
+        // 2. Capa Google Satélite Híbrido (Satelital + Etiquetas de calles)
+        // lyrs=y para Híbrido, lyrs=s para Satélite puro
+        L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+            attribution: '&copy; Google Maps'
+        }).addTo(map);
+
+        // 3. Diccionario de Colores cualitativos para Distritos
+        const coloresDistritos = {};
+        const paleta = ["#e74c3c", "#2ecc71", "#3498db", "#f1c40f", "#9b59b6", "#1abc9c", "#2c3e50", "#ecf0f1", "#ff9ff3", "#718BAA", "#63c234", "#5f27cd"];
+        
+        function getColor(dist) {
+            if (!coloresDistritos[dist]) {
+                coloresDistritos[dist] = paleta[Object.keys(coloresDistritos).length % paleta.length];
+            }
+            return coloresDistritos[dist];
+        }
+
+        const tableBody = document.getElementById('table-body');
+
+        // 4. Procesar Datos GeoJSON
+    
+    baseDeDatos.features.sort((a, b) => 
+    a.properties.distrito.localeCompare(b.properties.distrito) || 
+    a.properties.nombre.localeCompare(b.properties.nombre)
+);
+    
+    
+      baseDeDatos.features.forEach(feature => {
+            const p = feature.properties; // Aquí están tus campos: nombre, distrito, confianza, ubicado...
+            const color = getColor(p.distrito);
+
+            // 1. Crear fila en la tabla (usando tus campos)
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="${p.ubicado === 0 ? 'no-ubicado' : ''}">${p.nombre}</td>
+                <td>${p.distrito}</td>
+                <td style="text-align:center">${p.confianza}</td>
+            `;
+            tableBody.appendChild(tr);
+
+            // 2. Lógica para dibujar el punto si está ubicado
+            if (p.ubicado === 1 && feature.geometry && feature.geometry.coordinates) {
+                let coords;
+                
+                // CORRECCIÓN PARA MULTIPOINT: Extraemos el primer par de coordenadas
+                if (feature.geometry.type === "MultiPoint") {
+                    coords = feature.geometry.coordinates[0];
+                } else {
+                    coords = feature.geometry.coordinates;
+                }
+
+                if (coords) {
+                    // Invertimos de [Long, Lat] a [Lat, Long] para Leaflet
+                    const latLng = [coords[1], coords[0]];
+                    
+                    // Cálculo de radio según confianza (ajusta los números si quieres otros tamaños)
+                    const radio = (6 - p.confianza) * 3;
+
+                    const marker = L.circleMarker(latLng, {
+                        radius: radio,
+                        fillColor: color,
+                        color: "#fff",
+                        weight: 1,
+                        fillOpacity: 0.8
+                    }).addTo(map);
+
+                    // Etiqueta de nombre
+                    marker.bindTooltip(p.nombre, {
+                        permanent: true,
+                        direction: 'top',
+                        offset: [0, -radio],
+                        className: 'label-style' // Asegúrate de tener este estilo en tu CSS
+                    });
+
+                    // Información del Popup
+                    marker.bindPopup(`
+                        <div style="color:#333">
+                            <strong>${p.nombre}</strong><br>
+                            <b>Depto:</b> ${p.departamento}<br>
+                            <b>Distrito:</b> ${p.distrito}<br>
+                            <b>Confianza:</b> Nivel ${p.confianza}
+                        </div>
+                    `);
+
+                    // Acción al hacer clic en la fila de la tabla
+                    tr.onclick = () => {
+                        map.flyTo(latLng, 15);
+                        marker.openPopup();
+                    };
+                }
+            }
+        });
+
+        // 5. Crear Leyenda dinámicamente en el sidebar
+        const legendDiv = document.getElementById('legend');
+        Object.keys(coloresDistritos).sort().forEach(d => {
+            legendDiv.innerHTML += `
+                <div class="legend-item">
+                    <span class="color-dot" style="background:${coloresDistritos[d]}"></span>
+                    <span>${d}</span>
+                </div>`;
+        });
+
+    </script>
+</body>
+</html>
