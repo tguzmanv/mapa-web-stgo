@@ -74,6 +74,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- Tus datos exportados de QGIS -->
     <script src="datos.js"></script>
+    <script src="distritos.js"></script> <!-- Nuevo archivo de polígonos -->
 
     <script>
         // 1. Configuración Inicial del Mapa
@@ -98,6 +99,46 @@
 
         const tableBody = document.getElementById('table-body');
 
+
+// 1. Definir el estilo de los polígonos
+function estiloPoligonosDistritos(feature) {
+    return {
+        fillColor: 'transparent', // Sin relleno para que no tape el satélite
+        weight: 2,                // Grosor de línea
+        opacity: 1,
+        color: '#f39c12',         // Color naranja histórico o el que prefieras
+        dashArray: '3',           // Línea punteada
+        fillOpacity: 0
+    };
+}
+
+// 2. Crear la capa GeoJSON de distritos (pero NO añadirla al mapa todavía)
+const layerPoligonosDistritos = L.geoJSON(datosPoligonosDistritos, {
+    style: estiloPoligonosDistritos,
+    onEachFeature: function (feature, layer) {
+        // Pop-up opcional para el nombre del distrito
+        if (feature.properties && feature.properties.distrito) {
+            layer.bindPopup("Distrito: " + feature.properties.distrito);
+        }
+    }
+});
+
+
+const capasSuperpuestas = {
+    "Límites de Distritos (diagramas de Voronoi)": layerPoligonosDistritos
+    // Aquí podrías añadir más si en el futuro tienes ríos, caminos, etc.
+};
+
+// 4. Agregar el control al mapa
+L.control.layers(capasSuperpuestas, {
+    collapsed: false // Para que el menú esté siempre abierto y el cliente lo vea
+}).addTo(map);
+
+
+
+
+
+        
         // 4. Procesar Datos GeoJSON
     
     baseDeDatos.features.sort((a, b) => 
